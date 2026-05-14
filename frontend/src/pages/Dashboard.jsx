@@ -1,5 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import axios from 'axios'
+
+import { HiArrowLeft, HiChatBubbleLeftRight, HiAcademicCap } from 'react-icons/hi2'
+import { FaBrain, FaBullseye, FaFire } from 'react-icons/fa'
+import { MdOutlinePsychology, MdTrendingUp } from 'react-icons/md'
+import { GiProgression } from 'react-icons/gi'
 
 const API = '/api'
 
@@ -27,8 +32,9 @@ export default function Dashboard({ user, onBack, dark }) {
   const t = dark ? D : L
 
   useEffect(() => {
-    axios.get(`${API}/analytics`)
-      .then(res => {
+    axios
+      .get(`${API}/analytics`)
+      .then((res) => {
         setData(res.data)
         setLoading(false)
       })
@@ -38,7 +44,17 @@ export default function Dashboard({ user, onBack, dark }) {
   if (loading) {
     return (
       <Shell t={t}>
-        <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.text, fontFamily: "'DM Sans', sans-serif", fontWeight: 800 }}>
+        <div
+          style={{
+            height: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: t.text,
+            fontFamily: "'DM Sans', sans-serif",
+            fontWeight: 800,
+          }}
+        >
           Loading analytics...
         </div>
       </Shell>
@@ -48,7 +64,16 @@ export default function Dashboard({ user, onBack, dark }) {
   if (!data) {
     return (
       <Shell t={t}>
-        <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.text, fontFamily: "'DM Sans', sans-serif" }}>
+        <div
+          style={{
+            height: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: t.text,
+            fontFamily: "'DM Sans', sans-serif",
+          }}
+        >
           Could not load analytics.
         </div>
       </Shell>
@@ -71,17 +96,74 @@ export default function Dashboard({ user, onBack, dark }) {
         .dash-btn:hover { background: ${t.hover} !important; transform: translateY(-1px); }
       `}</style>
 
-      <div style={{ position: 'absolute', top: -130, right: '18%', width: 360, height: 360, borderRadius: '50%', background: t.blobOne, pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', bottom: -130, left: -90, width: 310, height: 310, borderRadius: '50%', background: t.blobTwo, pointerEvents: 'none' }} />
+      <div
+        style={{
+          position: 'absolute',
+          top: -130,
+          right: '18%',
+          width: 360,
+          height: 360,
+          borderRadius: '50%',
+          background: t.blobOne,
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          bottom: -130,
+          left: -90,
+          width: 310,
+          height: 310,
+          borderRadius: '50%',
+          background: t.blobTwo,
+          pointerEvents: 'none',
+        }}
+      />
 
-      <header style={{ position: 'relative', zIndex: 1, padding: '24px 44px 18px', borderBottom: `1px solid ${t.border}`, background: t.headerBg, backdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <header
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          padding: '24px 44px 18px',
+          borderBottom: `1px solid ${t.border}`,
+          background: t.headerBg,
+          backdropFilter: 'blur(18px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 13, background: t.accentGradient, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 18, boxShadow: t.shadow }}>
-            M
+          <div
+            style={{
+              width: 50,
+              height: 50,
+              borderRadius: 16,
+              background: t.accentGradient,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              fontWeight: 800,
+              fontSize: 18,
+              boxShadow: t.shadow,
+            }}
+          >
+            <FaBrain size={20} />
           </div>
           <div>
             <div style={{ color: t.text, fontSize: 22, fontWeight: 800 }}>MentorBot</div>
-            <div style={{ color: t.accentText, fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', marginTop: 3 }}>
+            <div
+              style={{
+                color: t.accentText,
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: 2,
+                textTransform: 'uppercase',
+                marginTop: 3,
+              }}
+            >
               AI Mentor Platform
             </div>
           </div>
@@ -103,48 +185,154 @@ export default function Dashboard({ user, onBack, dark }) {
             fontFamily: "'DM Sans', sans-serif",
             transition: 'all 0.2s',
             boxShadow: t.softShadow,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
           }}
         >
-          ← Back to Chat
+          <HiArrowLeft size={16} />
+          Back to Chat
         </button>
       </header>
 
-      <main style={{ position: 'relative', zIndex: 1, maxWidth: 1180, margin: '0 auto', padding: '34px 24px 44px' }}>
+      <main
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          maxWidth: 1180,
+          margin: '0 auto',
+          padding: '34px 24px 44px',
+        }}
+      >
         <section style={{ marginBottom: 30 }}>
-          <div style={{ color: t.accentText, fontSize: 12, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>
+          <div
+            style={{
+              color: t.accentText,
+              fontSize: 12,
+              fontWeight: 800,
+              letterSpacing: 2,
+              textTransform: 'uppercase',
+              marginBottom: 12,
+            }}
+          >
             Your Analytics
           </div>
 
-          <h1 style={{ fontFamily: "'Playfair Display', serif", color: t.text, fontSize: 48, lineHeight: 1.08, fontWeight: 600, margin: '0 0 12px' }}>
+          <h1
+            style={{
+              fontFamily: "'Playfair Display', serif",
+              color: t.text,
+              fontSize: 48,
+              lineHeight: 1.08,
+              fontWeight: 600,
+              margin: '0 0 12px',
+            }}
+          >
             Growth dashboard
           </h1>
 
-          <p style={{ color: t.muted, fontSize: 16, lineHeight: 1.7, maxWidth: 640, margin: 0 }}>
+          <p
+            style={{
+              color: t.muted,
+              fontSize: 16,
+              lineHeight: 1.7,
+              maxWidth: 640,
+              margin: 0,
+            }}
+          >
             Hi {user.name}, here is a snapshot of your mentoring activity, mood patterns, and goal progress.
           </p>
         </section>
 
-        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 16, marginBottom: 22 }}>
-          <MetricCard t={t} label="Total Messages" value={data.total_messages} icon="💬" color={t.accentText} />
-          <MetricCard t={t} label="User Messages" value={data.user_messages} icon="✍️" color="#8b5cf6" />
-          <MetricCard t={t} label="Active Goals" value={data.active_goals} icon="🎯" color={t.accentText} />
-          <MetricCard t={t} label="Avg Progress" value={`${data.avg_progress}%`} icon="📈" color="#10b981" />
+        <section
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+            gap: 16,
+            marginBottom: 22,
+          }}
+        >
+          <MetricCard
+            t={t}
+            label="Total Messages"
+            value={data.total_messages}
+            icon={<HiChatBubbleLeftRight size={22} />}
+            iconBg="linear-gradient(135deg,#3b82f6,#06b6d4)"
+            color="#3b82f6"
+          />
+          <MetricCard
+            t={t}
+            label="User Messages"
+            value={data.user_messages}
+            icon={<MdOutlinePsychology size={22} />}
+            iconBg="linear-gradient(135deg,#8b5cf6,#ec4899)"
+            color="#8b5cf6"
+          />
+          <MetricCard
+            t={t}
+            label="Active Goals"
+            value={data.active_goals}
+            icon={<FaBullseye size={20} />}
+            iconBg="linear-gradient(135deg,#10b981,#14b8a6)"
+            color="#10b981"
+          />
+          <MetricCard
+            t={t}
+            label="Avg Progress"
+            value={`${data.avg_progress}%`}
+            icon={<MdTrendingUp size={22} />}
+            iconBg="linear-gradient(135deg,#f59e0b,#ef4444)"
+            color="#f59e0b"
+          />
         </section>
 
-        <section style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', gap: 20, marginBottom: 22 }}>
+        <section
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1.15fr 0.85fr',
+            gap: 20,
+            marginBottom: 22,
+          }}
+        >
           <Card t={t}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 20 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                gap: 16,
+                marginBottom: 20,
+              }}
+            >
               <div>
                 <h2 style={headingStyle(t)}>Mood Breakdown</h2>
                 <p style={subStyle(t)}>
                   Most common mood:{' '}
-                  <strong style={{ color: MOOD_COLORS[topMood?.[0]] || t.text, textTransform: 'capitalize' }}>
+                  <strong
+                    style={{
+                      color: MOOD_COLORS[topMood?.[0]] || t.text,
+                      textTransform: 'capitalize',
+                    }}
+                  >
                     {topMood ? `${MOOD_EMOJIS[topMood[0]] || ''} ${topMood[0]}` : 'N/A'}
                   </strong>
                 </p>
               </div>
-              <div style={{ width: 54, height: 54, borderRadius: 18, background: t.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>
-                😊
+
+              <div
+                style={{
+                  width: 58,
+                  height: 58,
+                  borderRadius: 20,
+                  background: 'linear-gradient(135deg,#8b5cf6,#ec4899)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  boxShadow: '0 10px 26px rgba(168,85,247,0.35)',
+                }}
+              >
+                <FaFire size={24} />
               </div>
             </div>
 
@@ -159,7 +347,14 @@ export default function Dashboard({ user, onBack, dark }) {
                   return (
                     <div key={mood}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
-                        <span style={{ fontSize: 14, color: t.subtext, fontWeight: 800, textTransform: 'capitalize' }}>
+                        <span
+                          style={{
+                            fontSize: 14,
+                            color: t.subtext,
+                            fontWeight: 800,
+                            textTransform: 'capitalize',
+                          }}
+                        >
                           {MOOD_EMOJIS[mood] || '•'} {mood}
                         </span>
                         <span style={{ fontSize: 13, color: t.muted, fontWeight: 700 }}>
@@ -167,7 +362,15 @@ export default function Dashboard({ user, onBack, dark }) {
                         </span>
                       </div>
                       <div style={{ height: 9, background: t.track, borderRadius: 999, overflow: 'hidden' }}>
-                        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 999, transition: 'width 0.5s' }} />
+                        <div
+                          style={{
+                            width: `${pct}%`,
+                            height: '100%',
+                            background: color,
+                            borderRadius: 999,
+                            transition: 'width 0.5s',
+                          }}
+                        />
                       </div>
                     </div>
                   )
@@ -177,15 +380,36 @@ export default function Dashboard({ user, onBack, dark }) {
           </Card>
 
           <Card t={t}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 20 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                gap: 16,
+                marginBottom: 20,
+              }}
+            >
               <div>
                 <h2 style={headingStyle(t)}>Goals Progress</h2>
                 <p style={subStyle(t)}>
                   {data.completed_goals} of {data.total_goals} goals completed
                 </p>
               </div>
-              <div style={{ width: 54, height: 54, borderRadius: 18, background: t.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>
-                🎯
+
+              <div
+                style={{
+                  width: 58,
+                  height: 58,
+                  borderRadius: 20,
+                  background: 'linear-gradient(135deg,#10b981,#14b8a6)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  boxShadow: '0 10px 26px rgba(16,185,129,0.35)',
+                }}
+              >
+                <FaBullseye size={24} />
               </div>
             </div>
 
@@ -193,16 +417,74 @@ export default function Dashboard({ user, onBack, dark }) {
               <p style={{ color: t.muted, fontSize: 14 }}>No goals yet. Add goals in the chat sidebar.</p>
             ) : (
               <div style={{ display: 'grid', gap: 14 }}>
-                {goals.slice(0, 6).map(g => (
+                {goals.slice(0, 6).map((g) => (
                   <div key={g.id}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 7 }}>
-                      <span style={{ fontSize: 14, color: t.text, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {g.status === 'completed' ? '✅' : '🎯'} {g.title}
+                      <span
+                        style={{
+                          fontSize: 14,
+                          color: t.text,
+                          fontWeight: 800,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        {g.status === 'completed' ? (
+                          <span
+                            style={{
+                              width: 22,
+                              height: 22,
+                              borderRadius: 8,
+                              background: 'linear-gradient(135deg,#10b981,#14b8a6)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#fff',
+                              boxShadow: '0 6px 14px rgba(16,185,129,0.28)',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <HiAcademicCap size={12} />
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              width: 22,
+                              height: 22,
+                              borderRadius: 8,
+                              background: 'linear-gradient(135deg,#f59e0b,#ef4444)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#fff',
+                              boxShadow: '0 6px 14px rgba(245,158,11,0.28)',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <FaBullseye size={11} />
+                          </span>
+                        )}
+                        {g.title}
                       </span>
                       <span style={{ fontSize: 13, color: t.muted, fontWeight: 700 }}>{g.progress}%</span>
                     </div>
                     <div style={{ height: 9, background: t.track, borderRadius: 999, overflow: 'hidden' }}>
-                      <div style={{ width: `${g.progress}%`, height: '100%', background: g.status === 'completed' ? '#10b981' : t.accentGradient, borderRadius: 999, transition: 'width 0.5s' }} />
+                      <div
+                        style={{
+                          width: `${g.progress}%`,
+                          height: '100%',
+                          background:
+                            g.status === 'completed'
+                              ? '#10b981'
+                              : t.accentGradient,
+                          borderRadius: 999,
+                          transition: 'width 0.5s',
+                        }}
+                      />
                     </div>
                   </div>
                 ))}
@@ -211,13 +493,33 @@ export default function Dashboard({ user, onBack, dark }) {
           </Card>
         </section>
 
-        <section style={{ display: 'grid', gridTemplateColumns: '0.8fr 1.2fr', gap: 20 }}>
+        <section
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '0.8fr 1.2fr',
+            gap: 20,
+          }}
+        >
           <Card t={t}>
             <h2 style={headingStyle(t)}>Completion</h2>
             <p style={subStyle(t)}>Overall progress across all goals.</p>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginTop: 22 }}>
-              <ProgressRing value={data.avg_progress || 0} t={t} />
+              <div style={{ position: 'relative' }}>
+                <ProgressRing value={data.avg_progress || 0} t={t} />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%,-50%)',
+                    color: '#fff',
+                  }}
+                >
+                  <GiProgression size={22} />
+                </div>
+              </div>
+
               <div>
                 <div style={{ color: t.text, fontSize: 34, fontWeight: 800 }}>{data.avg_progress}%</div>
                 <div style={{ color: t.muted, fontSize: 14, marginTop: 4 }}>Average progress</div>
@@ -236,8 +538,24 @@ export default function Dashboard({ user, onBack, dark }) {
                 {moodHistory.slice(0, 24).map((m, i) => {
                   const color = MOOD_COLORS[m.emotion] || t.accentText
                   return (
-                    <div key={i} style={{ padding: '8px 12px', borderRadius: 999, fontSize: 12, fontWeight: 800, background: `${color}18`, color, border: `1px solid ${color}44`, textTransform: 'capitalize' }}>
-                      {MOOD_EMOJIS[m.emotion] || '•'} {m.emotion}
+                    <div
+                      key={i}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: 999,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        background: `${color}18`,
+                        color,
+                        border: `1px solid ${color}44`,
+                        textTransform: 'capitalize',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <span style={{ fontSize: 14 }}>{MOOD_EMOJIS[m.emotion] || ''}</span>
+                      <span>{m.emotion}</span>
                     </div>
                   )
                 })}
@@ -252,29 +570,98 @@ export default function Dashboard({ user, onBack, dark }) {
 
 function Shell({ children, t }) {
   return (
-    <div style={{ minHeight: '100vh', background: t.bg, color: t.text, fontFamily: "'DM Sans', sans-serif", position: 'relative', overflow: 'hidden' }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: t.bg,
+        color: t.text,
+        fontFamily: "'DM Sans', sans-serif",
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
       {children}
     </div>
   )
 }
 
-function MetricCard({ t, label, value, icon, color }) {
+function MetricCard({ t, label, value, icon, color, iconBg }) {
   return (
-    <div className="dash-card" style={{ background: t.cardBg, border: `1px solid ${t.border}`, borderRadius: 18, padding: 20, boxShadow: t.softShadow, transition: 'all 0.2s', backdropFilter: 'blur(18px)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-        <div style={{ width: 42, height: 42, borderRadius: 14, background: t.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+    <div
+      className="dash-card"
+      style={{
+        background: t.cardBg,
+        border: `1px solid ${t.border}`,
+        borderRadius: 22,
+        padding: 22,
+        boxShadow: t.softShadow,
+        transition: 'all 0.25s',
+        backdropFilter: 'blur(18px)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 18,
+        }}
+      >
+        <div
+          style={{
+            width: 50,
+            height: 50,
+            borderRadius: 16,
+            background: iconBg,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            boxShadow: '0 10px 24px rgba(0,0,0,0.12)',
+          }}
+        >
           {icon}
         </div>
       </div>
-      <div style={{ fontSize: 32, fontWeight: 800, color, marginBottom: 4 }}>{value}</div>
-      <div style={{ fontSize: 13, color: t.muted, fontWeight: 700 }}>{label}</div>
+
+      <div
+        style={{
+          fontSize: 34,
+          fontWeight: 800,
+          color,
+          marginBottom: 6,
+        }}
+      >
+        {value}
+      </div>
+
+      <div
+        style={{
+          fontSize: 13,
+          color: t.muted,
+          fontWeight: 700,
+        }}
+      >
+        {label}
+      </div>
     </div>
   )
 }
 
 function Card({ t, children }) {
   return (
-    <div className="dash-card" style={{ background: t.cardBg, border: `1px solid ${t.border}`, borderRadius: 20, padding: 24, boxShadow: t.softShadow, transition: 'all 0.2s', backdropFilter: 'blur(18px)' }}>
+    <div
+      className="dash-card"
+      style={{
+        background: t.cardBg,
+        border: `1px solid ${t.border}`,
+        borderRadius: 20,
+        padding: 24,
+        boxShadow: t.softShadow,
+        transition: 'all 0.2s',
+        backdropFilter: 'blur(18px)',
+      }}
+    >
       {children}
     </div>
   )
@@ -285,8 +672,31 @@ function ProgressRing({ value, t }) {
   const bg = `conic-gradient(${t.accent} ${pct * 3.6}deg, ${t.track} 0deg)`
 
   return (
-    <div style={{ width: 118, height: 118, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: t.softShadow }}>
-      <div style={{ width: 84, height: 84, borderRadius: '50%', background: t.innerCircle, display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.text, fontWeight: 800 }}>
+    <div
+      style={{
+        width: 118,
+        height: 118,
+        borderRadius: '50%',
+        background: bg,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: t.softShadow,
+      }}
+    >
+      <div
+        style={{
+          width: 84,
+          height: 84,
+          borderRadius: '50%',
+          background: t.innerCircle,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: t.text,
+          fontWeight: 800,
+        }}
+      >
         {pct}%
       </div>
     </div>

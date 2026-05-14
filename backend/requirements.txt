@@ -7,7 +7,7 @@ anthropic==0.28.0
 # Auth — NEW: JWT tokens + password hashing
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
- 
+ bcrypt==4.0.1
 # Rate limiting — NEW: prevents API key abuse
 slowapi==0.1.9
 
