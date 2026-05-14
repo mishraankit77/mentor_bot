@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
-import { FaPencilAlt } from "react-icons/fa";
+
 const API = '/api'
 
 const SUGGESTIONS = [
@@ -10,154 +10,218 @@ const SUGGESTIONS = [
   "Give me a 30-day learning roadmap 🗺️",
 ]
 
+const createSessionId = () => {
+  return `session-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 export default function Chat({ user, onLogout, dark, setDark, onDashboard }) {
   const [messages, setMessages] = useState([])
-  const [historyMessages, setHistoryMessages] = useState([])
   const [sessions, setSessions] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [attachment, setAttachment] = useState(null)
   const [emotion, setEmotion] = useState({ label: 'neutral', emoji: '😊' })
   const [sidebarOpen, setSidebar] = useState(true)
   const [goals, setGoals] = useState([])
   const [newGoal, setNewGoal] = useState('')
   const [showGoals, setShowGoals] = useState(false)
-  const [activeSessionId, setActiveSessionId] = useState(null)
+  const [activeSessionId, setActiveSessionId] = useState(createSessionId())
 
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
-
+  const fileInputRef = useRef(null)
   const t = dark ? D : L
 
-  const buildSessions = (hist) => {
-    if (!hist || !hist.length) {
+  const buildSessions = (hist = []) => {
+    if (!hist.length) {
       setSessions([])
       return
     }
 
-    const chunks = []
+    const grouped = hist.reduce((acc, msg, index) => {
+      const sessionId = msg.session_id || msg.sessionId || `old-session-${Math.floor(index / 10)}`
 
-    for (let i = 0; i < hist.length; i += 10) {
-      const chunk = hist.slice(i, i + 10)
-      const firstUser = chunk.find(m => m.role === 'user')
-
-      if (firstUser) {
-        chunks.push({
-          id: `session-${i}`,
-          title: firstUser.content.slice(0, 40) + (firstUser.content.length > 40 ? '…' : ''),
-          messages: chunk,
-        })
+      if (!acc[sessionId]) {
+        acc[sessionId] = {
+          id: sessionId,
+          title: 'New chat',
+          messages: [],
+          createdAt: msg.timestamp || msg.created_at || msg.createdAt || index,
+        }
       }
-    }
 
-    setSessions(chunks.reverse())
+      acc[sessionId].messages.push(msg)
+
+      if (msg.role === 'user' && acc[sessionId].title === 'New chat') {
+        acc[sessionId].title = msg.content.slice(0, 40) + (msg.content.length > 40 ? '…' : '')
+      }
+
+      return acc
+    }, {})
+
+    setSessions(
+      Object.values(grouped).sort((a, b) => {
+        const aTime = new Date(a.createdAt).getTime() || 0
+        const bTime = new Date(b.createdAt).getTime() || 0
+        return bTime - aTime
+      })
+    )
   }
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [histRes, goalsRes] = await Promise.all([
-          axios.get(`${API}/history/${user.userId}`),
-          axios.get(`${API}/goals/${user.userId}`),
-        ])
-
-        const hist = histRes.data.history || []
-
-        setHistoryMessages(hist)
-        setMessages([])
-        setActiveSessionId(null)
+    axios.get(`${API}/history`)
+      .then(res => {
+        const hist = res.data.history || []
         buildSessions(hist)
+        setMessages([])
+        setActiveSessionId(createSessionId())
+      })
+      .catch(() => {})
 
-        setGoals(goalsRes.data.goals || [])
-      } catch (err) {
-        console.error('Failed to load data:', err)
-      }
-    }
-
-    loadData()
-  }, [user.userId])
+    axios.get(`${API}/goals`)
+      .then(res => setGoals(res.data.goals || []))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
 
   const openSession = (session) => {
-    setMessages(session.messages)
     setActiveSessionId(session.id)
+    setMessages(session.messages || [])
+    setInput('')
+    setAttachment(null)
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }
+
+  const newChat = () => {
+    setActiveSessionId(createSessionId())
+    setMessages([])
+    setInput('')
+    setAttachment(null)
+    setLoading(false)
+    setTimeout(() => inputRef.current?.focus(), 0)
   }
 
   const addGoal = async () => {
     if (!newGoal.trim()) return
 
     try {
-      const res = await axios.post(`${API}/goals/add`, {
-        user_id: user.userId,
+      const res = await axios.post(`${API}/goals`, {
         title: newGoal.trim(),
       })
 
       setGoals(p => [res.data.goal, ...p])
       setNewGoal('')
-    } catch (err) {
-      console.error('Failed to add goal:', err)
-    }
+    } catch {}
   }
 
   const updateProgress = async (goalId, progress) => {
     try {
       await axios.put(`${API}/goals/${goalId}/progress`, { progress })
 
-      setGoals(p =>
-        p.map(g =>
-          g.id === goalId
-            ? { ...g, progress, status: progress >= 100 ? 'completed' : 'active' }
-            : g
-        )
-      )
-    } catch (err) {
-      console.error('Failed to update goal:', err)
-    }
+      setGoals(p => p.map(g =>
+        g.id === goalId
+          ? { ...g, progress, status: progress >= 100 ? 'completed' : 'active' }
+          : g
+      ))
+    } catch {}
   }
 
   const deleteGoal = async (goalId) => {
     try {
       await axios.delete(`${API}/goals/${goalId}`)
       setGoals(p => p.filter(g => g.id !== goalId))
-    } catch (err) {
-      console.error('Failed to delete goal:', err)
-    }
+    } catch {}
+  }
+
+  const upsertSession = (sessionId, sessionMessages) => {
+    const firstUser = sessionMessages.find(m => m.role === 'user')
+    const title = firstUser
+      ? firstUser.content.slice(0, 40) + (firstUser.content.length > 40 ? '…' : '')
+      : 'New chat'
+
+    setSessions(prev => {
+      const withoutCurrent = prev.filter(s => s.id !== sessionId)
+      return [
+        {
+          id: sessionId,
+          title,
+          messages: sessionMessages,
+          createdAt: new Date().toISOString(),
+        },
+        ...withoutCurrent,
+      ]
+    })
   }
 
   const send = async (text) => {
-    const msg = (text || input).trim()
-    if (!msg || loading) return
+    const rawText = (text || input).trim()
 
-    const userMessage = { role: 'user', content: msg }
+    if ((!rawText && !attachment) || loading || uploading) return
 
+    const msg = attachment
+      ? `${rawText || 'Please help me with this uploaded file.'}
+
+[Uploaded file: ${attachment.name}]
+${attachment.text}`.slice(0, 6000)
+      : rawText.slice(0, 6000)
+
+    const displayMessage = attachment
+      ? `${rawText || 'Please help me with this uploaded file.'}
+
+📎 ${attachment.name}`
+      : msg
+
+    const sessionId = activeSessionId || createSessionId()
+    const userMessage = {
+      role: 'user',
+      content: displayMessage,
+      session_id: sessionId,
+    }
+
+    setActiveSessionId(sessionId)
     setMessages(p => [...p, userMessage])
     setInput('')
+    setAttachment(null)
     setLoading(true)
 
     try {
       const res = await axios.post(`${API}/chat`, {
-        user_id: user.userId,
         message: msg,
+        session_id: sessionId,
       })
 
-      const reply = res.data.reply
-      const assistantMessage = { role: 'assistant', content: reply }
+      const assistantMessage = {
+        role: 'assistant',
+        content: res.data.reply,
+        session_id: sessionId,
+      }
 
-      setMessages(p => [...p, assistantMessage])
-
-      setHistoryMessages(p => {
-        const updatedHistory = [...p, userMessage, assistantMessage]
-        buildSessions(updatedHistory)
-        return updatedHistory
+      setMessages(prev => {
+        const updated = [...prev, assistantMessage]
+        upsertSession(sessionId, updated)
+        return updated
       })
 
-      setEmotion({ label: res.data.emotion, emoji: res.data.emotion_emoji })
+      setEmotion({
+        label: res.data.emotion,
+        emoji: res.data.emotion_emoji,
+      })
     } catch (err) {
+      const detail = err.response?.data?.detail
+
       setMessages(p => [
         ...p,
-        { role: 'assistant', content: '⚠️ Backend not reachable. Check FastAPI on port 8000.' },
+        {
+          role: 'assistant',
+          content: detail === 'Rate limit exceeded'
+            ? '⚠️ You are sending messages too fast. Please wait a moment.'
+            : '⚠️ Backend not reachable. Check FastAPI on port 8000.',
+          session_id: sessionId,
+        },
       ])
     } finally {
       setLoading(false)
@@ -165,13 +229,38 @@ export default function Chat({ user, onLogout, dark, setDark, onDashboard }) {
     }
   }
 
-  const newChat = () => {
-    setMessages([])
-    setActiveSessionId(null)
-    inputRef.current?.focus()
+  const handleFileUpload = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file || uploading || loading) return
+
+    setUploading(true)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await axios.post(`${API}/files/extract`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+
+      setAttachment({
+        name: res.data.filename || file.name,
+        type: res.data.content_type || file.type,
+        text: res.data.text || '',
+      })
+
+      setTimeout(() => inputRef.current?.focus(), 0)
+    } catch (err) {
+      const detail = err.response?.data?.detail || 'Could not read this file.'
+      alert(detail)
+    } finally {
+      setUploading(false)
+      event.target.value = ''
+    }
   }
 
   const isEmpty = messages.length === 0
+  const canSend = (!!input.trim() || !!attachment) && !loading && !uploading
 
   const emotionColors = {
     stressed: '#ef4444',
@@ -190,12 +279,11 @@ export default function Chat({ user, onLogout, dark, setDark, onDashboard }) {
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=DM+Sans:wght@300;400;500&display=swap');
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: ${dark ? '#1e3a5f' : '#d1d5db'}; border-radius: 2px; }
         textarea { outline: none; }
         .hov:hover { background: ${t.hover} !important; }
         .send-btn:hover:not(:disabled) { opacity: 1 !important; filter: brightness(1.1); }
-        .suggestion-btn:hover { background: ${t.suggHover} !important; border-color: ${t.border} !important; }
+        .suggestion-btn:hover { background: ${t.suggHover} !important; }
       `}</style>
 
       {sidebarOpen && (
@@ -205,12 +293,12 @@ export default function Chat({ user, onLogout, dark, setDark, onDashboard }) {
               <div style={{ width: 28, height: 28, borderRadius: 7, background: dark ? '#00B4D8' : '#d4a853', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 14 }}>M</div>
               <span style={{ fontWeight: 600, fontSize: 15, color: t.text }}>MentorBot</span>
             </div>
-            <button className="hov" onClick={() => setSidebar(false)} style={{ background: 'transparent', border: 'none', color: t.muted, cursor: 'pointer', padding: '4px 6px', borderRadius: 6, fontSize: 16 }}>✕</button>
+            <button type="button" className="hov" onClick={() => setSidebar(false)} style={{ background: 'transparent', border: 'none', color: t.muted, cursor: 'pointer', padding: '4px 6px', borderRadius: 6, fontSize: 16 }}>✕</button>
           </div>
 
           <div style={{ padding: '6px 12px 10px' }}>
-            <button className="hov" onClick={newChat} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'transparent', border: `1px solid ${t.border}`, borderRadius: 10, color: t.text, cursor: 'pointer', fontSize: 14, fontWeight: 500, transition: 'all 0.15s', fontFamily: "'DM Sans', sans-serif" }}>
-              <span style={{ fontSize: 16 }}><FaPencilAlt /></span> New chat
+            <button type="button" className="hov" onClick={newChat} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: isEmpty ? t.hover : 'transparent', border: `1px solid ${t.border}`, borderRadius: 10, color: t.text, cursor: 'pointer', fontSize: 14, fontWeight: 500, transition: 'all 0.15s', fontFamily: "'DM Sans', sans-serif" }}>
+              <span style={{ fontSize: 16 }}>✏️</span> New chat
             </button>
           </div>
 
@@ -230,7 +318,6 @@ export default function Chat({ user, onLogout, dark, setDark, onDashboard }) {
                       fontSize: 13,
                       color: activeSessionId === s.id ? t.text : t.subtext,
                       marginBottom: 2,
-                      transition: 'background 0.15s',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -249,14 +336,13 @@ export default function Chat({ user, onLogout, dark, setDark, onDashboard }) {
           </div>
 
           <div style={{ padding: '10px 12px 14px', borderTop: `1px solid ${t.border}` }}>
-            <button className="hov" onClick={() => setDark(p => !p)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'transparent', border: 'none', borderRadius: 8, color: t.subtext, cursor: 'pointer', fontSize: 13, marginBottom: 8, fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s' }}>
+            <button type="button" className="hov" onClick={() => setDark(p => !p)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'transparent', border: 'none', borderRadius: 8, color: t.subtext, cursor: 'pointer', fontSize: 13, marginBottom: 8, fontFamily: "'DM Sans', sans-serif" }}>
               <span>{dark ? '☀️' : '🌙'}</span>
               <span>{dark ? 'Light mode' : 'Dark mode'}</span>
             </button>
 
-            <button className="hov" onClick={onDashboard} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'transparent', border: 'none', borderRadius: 8, color: t.subtext, cursor: 'pointer', fontSize: 13, marginBottom: 4, fontFamily: "'DM Sans', sans-serif" }}>
-              <span>📊</span>
-              <span>Analytics Dashboard</span>
+            <button type="button" className="hov" onClick={onDashboard} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'transparent', border: 'none', borderRadius: 8, color: t.subtext, cursor: 'pointer', fontSize: 13, marginBottom: 4, fontFamily: "'DM Sans', sans-serif" }}>
+              <span>📊</span><span>Analytics Dashboard</span>
             </button>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8 }}>
@@ -267,7 +353,7 @@ export default function Chat({ user, onLogout, dark, setDark, onDashboard }) {
                 <div style={{ fontSize: 13, fontWeight: 500, color: t.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
                 <div style={{ fontSize: 11, color: t.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
               </div>
-              <button onClick={onLogout} style={{ background: 'transparent', border: 'none', color: t.muted, cursor: 'pointer', fontSize: 16, padding: 4, borderRadius: 6 }} title="Switch user">⇄</button>
+              <button type="button" onClick={onLogout} style={{ background: 'transparent', border: 'none', color: t.muted, cursor: 'pointer', fontSize: 16, padding: 4, borderRadius: 6 }} title="Sign out">⇄</button>
             </div>
           </div>
         </div>
@@ -277,25 +363,18 @@ export default function Chat({ user, onLogout, dark, setDark, onDashboard }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderBottom: `1px solid ${t.border}`, background: t.topbar }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {!sidebarOpen && (
-              <button className="hov" onClick={() => setSidebar(true)} style={{ background: 'transparent', border: 'none', color: t.muted, cursor: 'pointer', fontSize: 18, padding: '4px 8px', borderRadius: 6 }}>☰</button>
+              <button type="button" className="hov" onClick={() => setSidebar(true)} style={{ background: 'transparent', border: 'none', color: t.muted, cursor: 'pointer', fontSize: 18, padding: '4px 8px', borderRadius: 6 }}>☰</button>
             )}
             <span style={{ fontSize: 14, fontWeight: 500, color: t.subtext }}>MentorBot</span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: moodColor + '20', color: moodColor, border: `1px solid ${moodColor}40`, textTransform: 'capitalize' }}>
-              {emotion.emoji} {emotion.label}
-            </div>
-            {!sidebarOpen && (
-              <button className="hov" onClick={() => setDark(p => !p)} style={{ background: 'transparent', border: `1px solid ${t.border}`, borderRadius: 8, color: t.muted, cursor: 'pointer', fontSize: 14, padding: '4px 10px' }}>
-                {dark ? '☀️' : '🌙'}
-              </button>
-            )}
+          <div style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: moodColor + '20', color: moodColor, border: `1px solid ${moodColor}40`, textTransform: 'capitalize' }}>
+            {emotion.emoji} {emotion.label}
           </div>
         </div>
 
         <div style={{ padding: '0 8px 8px' }}>
-          <button className="hov" onClick={() => setShowGoals(p => !p)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'transparent', border: 'none', borderRadius: 8, color: t.subtext, cursor: 'pointer', fontSize: 13, fontFamily: "'DM Sans', sans-serif" }}>
+          <button type="button" className="hov" onClick={() => setShowGoals(p => !p)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'transparent', border: 'none', borderRadius: 8, color: t.subtext, cursor: 'pointer', fontSize: 13, fontFamily: "'DM Sans', sans-serif" }}>
             <span>🎯 Goals ({goals.filter(g => g.status === 'active').length} active)</span>
             <span>{showGoals ? '▲' : '▼'}</span>
           </button>
@@ -310,9 +389,7 @@ export default function Chat({ user, onLogout, dark, setDark, onDashboard }) {
                   onChange={e => setNewGoal(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addGoal()}
                 />
-                <button onClick={addGoal} style={{ padding: '7px 10px', background: dark ? '#00B4D8' : '#d4a853', border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, cursor: 'pointer' }}>
-                  +
-                </button>
+                <button type="button" onClick={addGoal} style={{ padding: '7px 10px', background: dark ? '#00B4D8' : '#d4a853', border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, cursor: 'pointer' }}>+</button>
               </div>
 
               {goals.slice(0, 5).map(g => (
@@ -321,7 +398,7 @@ export default function Chat({ user, onLogout, dark, setDark, onDashboard }) {
                     <span style={{ fontSize: 12, color: t.text, fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {g.status === 'completed' ? '✅' : '🎯'} {g.title}
                     </span>
-                    <button onClick={() => deleteGoal(g.id)} style={{ background: 'transparent', border: 'none', color: t.muted, cursor: 'pointer', fontSize: 12, padding: '0 2px' }}>✕</button>
+                    <button type="button" onClick={() => deleteGoal(g.id)} style={{ background: 'transparent', border: 'none', color: t.muted, cursor: 'pointer', fontSize: 12, padding: '0 2px' }}>✕</button>
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -334,20 +411,7 @@ export default function Chat({ user, onLogout, dark, setDark, onDashboard }) {
                   {g.status !== 'completed' && (
                     <div style={{ display: 'flex', gap: 4, marginTop: 5 }}>
                       {[25, 50, 75, 100].map(p => (
-                        <button
-                          key={p}
-                          onClick={() => updateProgress(g.id, p)}
-                          style={{
-                            flex: 1,
-                            padding: '3px 0',
-                            background: g.progress >= p ? (dark ? '#00B4D8' : '#d4a853') : (dark ? '#0D1B2A' : '#f3f4f6'),
-                            border: `1px solid ${t.border}`,
-                            borderRadius: 5,
-                            fontSize: 10,
-                            color: g.progress >= p ? '#fff' : t.muted,
-                            cursor: 'pointer',
-                          }}
-                        >
+                        <button key={p} type="button" onClick={() => updateProgress(g.id, p)} style={{ flex: 1, padding: '3px 0', background: g.progress >= p ? (dark ? '#00B4D8' : '#d4a853') : (dark ? '#0D1B2A' : '#f3f4f6'), border: `1px solid ${t.border}`, borderRadius: 5, fontSize: 10, color: g.progress >= p ? '#fff' : t.muted, cursor: 'pointer' }}>
                           {p}%
                         </button>
                       ))}
@@ -367,12 +431,12 @@ export default function Chat({ user, onLogout, dark, setDark, onDashboard }) {
                 Good to see you, {user.name}!
               </h2>
               <p style={{ color: t.muted, fontSize: 15, lineHeight: 1.7, marginBottom: 32 }}>
-                I remember everything from our past conversations.<br />What's on your mind today?
+                What's on your mind today?
               </p>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, maxWidth: 520, width: '100%' }}>
                 {SUGGESTIONS.map(q => (
-                  <button key={q} className="suggestion-btn" onClick={() => send(q)} style={{ padding: '12px 16px', background: t.suggBg, border: `1px solid ${t.border}`, borderRadius: 12, color: t.subtext, fontSize: 13, cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.4, transition: 'all 0.15s' }}>
+                  <button key={q} type="button" className="suggestion-btn" onClick={() => send(q)} style={{ padding: '12px 16px', background: t.suggBg, border: `1px solid ${t.border}`, borderRadius: 12, color: t.subtext, fontSize: 13, cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.4, transition: 'all 0.15s' }}>
                     {q}
                   </button>
                 ))}
@@ -381,7 +445,7 @@ export default function Chat({ user, onLogout, dark, setDark, onDashboard }) {
           ) : (
             <div style={{ maxWidth: 720, margin: '0 auto', paddingTop: 24, paddingBottom: 8 }}>
               {messages.map((m, i) => (
-                <Bubble key={i} role={m.role} content={m.content} name={user.name} t={t} dark={dark} />
+                <Bubble key={`${m.session_id || activeSessionId}-${i}`} role={m.role} content={m.content} name={user.name} t={t} dark={dark} />
               ))}
               {loading && <ThinkingDots t={t} dark={dark} />}
               <div ref={bottomRef} />
@@ -391,15 +455,26 @@ export default function Chat({ user, onLogout, dark, setDark, onDashboard }) {
 
         <div style={{ padding: '12px 20px 16px', borderTop: `1px solid ${t.border}`, background: t.topbar }}>
           <div style={{ maxWidth: 720, margin: '0 auto' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, background: t.inputBg, border: `1px solid ${t.border}`, borderRadius: 14, padding: '10px 10px 10px 16px' }}>
+            {attachment && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8, padding: '8px 10px', background: dark ? '#1A2E40' : '#f9fafb', border: `1px solid ${t.border}`, borderRadius: 10, color: t.subtext, fontSize: 13 }}>
+                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  📎 {attachment.name}
+                </div>
+                <button type="button" onClick={() => setAttachment(null)} style={{ background: 'transparent', border: 'none', color: t.muted, cursor: 'pointer', fontSize: 15 }}>
+                  ✕
+                </button>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, background: t.inputBg, border: `1px solid ${attachment ? (dark ? '#00B4D8' : '#d4a853') : t.border}`, borderRadius: 14, padding: '10px 10px 10px 16px' }}>
               <textarea
                 ref={inputRef}
                 style={{ flex: 1, background: 'transparent', border: 'none', color: t.text, fontSize: 15, resize: 'none', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6, maxHeight: 120 }}
-                placeholder="Ask your mentor anything..."
+                placeholder={uploading ? 'Reading file...' : attachment ? 'Ask about this file...' : 'Ask your mentor anything...'}
                 value={input}
                 rows={1}
                 onChange={e => {
-                  setInput(e.target.value)
+                  setInput(e.target.value.slice(0, 2000))
                   e.target.style.height = 'auto'
                   e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
                 }}
@@ -410,11 +485,47 @@ export default function Chat({ user, onLogout, dark, setDark, onDashboard }) {
                   }
                 }}
               />
-              <button className="send-btn" style={{ width: 36, height: 36, borderRadius: 9, background: dark ? '#00B4D8' : '#d4a853', border: 'none', color: '#fff', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: (!input.trim() || loading) ? 0.4 : 1, transition: 'all 0.2s' }} onClick={() => send()} disabled={!input.trim() || loading}>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.txt,.md,.csv,image/*"
+                style={{ display: 'none' }}
+                onChange={handleFileUpload}
+              />
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                title="Upload PDF, image, or text file"
+                disabled={uploading || loading}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 9,
+                  background: uploading ? (dark ? '#00B4D8' : '#d4a853') : 'transparent',
+                  border: `1px solid ${uploading ? (dark ? '#00B4D8' : '#d4a853') : t.border}`,
+                  color: uploading ? '#fff' : t.subtext,
+                  fontSize: 16,
+                  cursor: uploading || loading ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  opacity: uploading || loading ? 0.7 : 1,
+                  transition: 'all 0.2s',
+                }}
+              >
+                {uploading ? '…' : '📎'}
+              </button>
+
+              <button type="button" className="send-btn" style={{ width: 36, height: 36, borderRadius: 9, background: dark ? '#00B4D8' : '#d4a853', border: 'none', color: '#fff', fontSize: 16, cursor: canSend ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: canSend ? 1 : 0.4, transition: 'all 0.2s' }} onClick={() => send()} disabled={!canSend}>
                 ➤
               </button>
             </div>
-            <p style={{ color: t.muted, fontSize: 11, textAlign: 'center', marginTop: 8 }}>Press Enter to send • Shift+Enter for new line</p>
+            <p style={{ color: t.muted, fontSize: 11, textAlign: 'center', marginTop: 8 }}>
+              {uploading ? 'Reading file...' : attachment ? 'File attached • Type a question or press send' : 'Enter to send • Shift+Enter for new line'}
+            </p>
           </div>
         </div>
       </div>
@@ -428,12 +539,12 @@ function Bubble({ role, content, name, t, dark }) {
   return (
     <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexDirection: isUser ? 'row-reverse' : 'row', alignItems: 'flex-start' }}>
       <div style={{ width: 32, height: 32, borderRadius: '50%', background: isUser ? (dark ? '#00B4D8' : '#d4a853') : (dark ? '#1A2E40' : '#f3f4f6'), display: 'flex', alignItems: 'center', justifyContent: 'center', color: isUser ? '#fff' : (dark ? '#00B4D8' : '#374151'), fontWeight: 700, fontSize: isUser ? 14 : 18, flexShrink: 0, border: isUser ? 'none' : `1px solid ${dark ? '#0077B6' : '#e5e7eb'}` }}>
-        {isUser ? (name?.[0] || 'U').toUpperCase() : '🧠'}
+        {isUser ? name[0].toUpperCase() : '🧠'}
       </div>
 
       <div style={{ maxWidth: '75%' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 5, letterSpacing: 0.3, textAlign: isUser ? 'right' : 'left', color: isUser ? (dark ? '#00B4D8' : '#d4a853') : (dark ? '#90E0EF' : '#6b7280') }}>
-          {isUser ? (name || 'User') : 'MentorBot'}
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 5, textAlign: isUser ? 'right' : 'left', color: isUser ? (dark ? '#00B4D8' : '#d4a853') : (dark ? '#90E0EF' : '#6b7280') }}>
+          {isUser ? name : 'MentorBot'}
         </div>
 
         <div style={{ padding: '12px 16px', fontSize: 15, lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: isUser ? (dark ? '#0D2137' : '#fff8ed') : (dark ? '#1A2E40' : '#f9fafb'), border: `1px solid ${isUser ? (dark ? '#0077B6' : '#fde68a') : (dark ? '#0077B6' : '#e5e7eb')}`, borderRadius: isUser ? '18px 4px 18px 18px' : '4px 18px 18px 18px', color: t.text }}>
@@ -447,7 +558,7 @@ function Bubble({ role, content, name, t, dark }) {
 function ThinkingDots({ t, dark }) {
   return (
     <div style={{ display: 'flex', gap: 12, marginBottom: 24, alignItems: 'flex-start' }}>
-      <div style={{ width: 32, height: 32, borderRadius: '50%', background: dark ? '#1A2E40' : '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0, border: `1px solid ${dark ? '#0077B6' : '#e5e7eb'}` }}>🧠</div>
+      <div style={{ width: 32, height: 32, borderRadius: '50%', background: dark ? '#1A2E40' : '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, border: `1px solid ${dark ? '#0077B6' : '#e5e7eb'}` }}>🧠</div>
       <div>
         <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 5, color: dark ? '#90E0EF' : '#6b7280' }}>MentorBot</div>
         <div style={{ padding: '14px 18px', background: dark ? '#1A2E40' : '#f9fafb', border: `1px solid ${dark ? '#0077B6' : '#e5e7eb'}`, borderRadius: '4px 18px 18px 18px', display: 'flex', gap: 5 }}>
