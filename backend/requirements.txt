@@ -1,18 +1,27 @@
-fastapi==0.111.0
-uvicorn==0.29.0
-pymongo==4.7.2
-python-dotenv==1.0.1
-openai==1.30.1
-anthropic==0.28.0
-# Auth — NEW: JWT tokens + password hashing
+# Web framework
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+
+# Database
+pymongo==4.10.1
+
+# Redis
+redis==5.2.0
+fastapi-limiter==0.1.6
+
+# Auth
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
- bcrypt==4.0.1
-# Rate limiting — NEW: prevents API key abuse
-slowapi==0.1.9
+bcrypt==4.2.1
 
+# LLM
+openai==1.57.0
 
+# Utils
+python-dotenv==1.0.1
+python-multipart==0.0.12
+pypdf==5.1.0
+httpx==0.28.0
 
-python-multipart==0.0.27
-pypdf==6.10.2
-
+# Email validation (pydantic v2 latest supports Python 3.13)
+pydantic[email]==2.10.3

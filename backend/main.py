@@ -1,42 +1,57 @@
-"""
-main.py  -- FastAPI application
-"""
+import os
+from io import BytesIO
+from typing import Optional
 
-from fastapi import FastAPI, Depends, Request, UploadFile, File, HTTPException
+from dotenv import load_dotenv
+from fastapi import FastAPI, Depends, Request, UploadFile, File, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import Optional
-from io import BytesIO
 from pypdf import PdfReader
-import os
-from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
-from database import (
-    save_message, get_chat_history,
-    ensure_indexes
+from auth import (
+    get_current_user,
+    register_user,
+    login_user,
+    refresh_access_token,
+    logout_user,
+    resend_email_otp,
+    verify_email_otp,
+    google_start,
+    google_callback,
+    github_start,
+    github_callback,
 )
+from database import save_message, get_chat_history, ensure_indexes
 from memory import get_memory_context, maybe_summarize
 from llm import get_ai_response, analyze_image
 from sentiment import detect_emotion, get_emotion_instruction, get_emotion_emoji
 from goals import (
-    add_goal, get_goals, update_goal_progress,
-    delete_goal, get_goals_summary,
-    log_mood, get_mood_history, get_mood_stats
+    add_goal,
+    get_goals,
+    update_goal_progress,
+    delete_goal,
+    get_goals_summary,
+    log_mood,
+    get_mood_history,
+    get_mood_stats,
 )
-from auth import get_current_user, register_user, login_user
 
 load_dotenv()
 
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=os.getenv("RATE_LIMIT_STORAGE_URI", "memory://"),
+)
+
 app = FastAPI(title="MentorBot API")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 _origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173")
-ALLOWED_ORIGINS = [o.strip() for o in _origins_env.split(",")]
+ALLOWED_ORIGINS = [o.strip() for o in _origins_env.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
@@ -46,6 +61,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.on_event("startup")
 def startup():
     ensure_indexes()
@@ -54,19 +70,32 @@ def startup():
 class RegisterRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     email: str = Field(..., min_length=5, max_length=200)
-    password: str = Field(..., min_length=6, max_length=100)
+    password: str = Field(..., min_length=8, max_length=100)
+
 
 class LoginRequest(BaseModel):
-    email: str = Field(..., max_length=200)
-    password: str = Field(..., max_length=100)
+    email: str = Field(..., min_length=5, max_length=200)
+    password: str = Field(..., min_length=8, max_length=100)
+
+
+class OTPRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=200)
+
+
+class OTPVerifyRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=200)
+    otp: str = Field(..., min_length=4, max_length=12)
+
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     session_id: str = Field(..., min_length=1, max_length=120)
 
+
 class GoalRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = Field("", max_length=500)
+
 
 class ProgressRequest(BaseModel):
     progress: int = Field(..., ge=0, le=100)
@@ -81,12 +110,10 @@ def extract_text_from_upload(file: UploadFile, data: bytes) -> str:
         try:
             reader = PdfReader(BytesIO(data))
             pages = []
-
             for i, page in enumerate(reader.pages[:20], start=1):
                 text = page.extract_text() or ""
                 if text.strip():
                     pages.append(f"[Page {i}]\n{text.strip()}")
-
             return "\n\n".join(pages).strip()
         except Exception:
             return ""
@@ -116,13 +143,60 @@ def extract_text_from_upload(file: UploadFile, data: bytes) -> str:
 def root():
     return {"status": "MentorBot API running"}
 
+
 @app.post("/auth/register")
-def register(req: RegisterRequest):
-    return register_user(req.name, req.email, req.password)
+def register(req: RegisterRequest, response: Response):
+    return register_user(req.name, req.email, req.password, response=response)
+
 
 @app.post("/auth/login")
-def login(req: LoginRequest):
-    return login_user(req.email, req.password)
+def login(req: LoginRequest, response: Response):
+    return login_user(req.email, req.password, response=response)
+
+
+@app.post("/auth/logout")
+def logout(request: Request, response: Response):
+    return logout_user(request, response)
+
+
+@app.post("/auth/refresh")
+def refresh(request: Request, response: Response):
+    return refresh_access_token(request, response)
+
+
+@app.get("/auth/me")
+def me(current_user: dict = Depends(get_current_user)):
+    return {"user": current_user}
+
+
+@app.post("/auth/send-otp")
+def send_otp(req: OTPRequest):
+    return resend_email_otp(req.email)
+
+
+@app.post("/auth/verify-otp")
+def verify_otp(req: OTPVerifyRequest, response: Response):
+    return verify_email_otp(req.email, req.otp, response=response)
+
+
+@app.get("/auth/google/start")
+def google_start_route():
+    return google_start()
+
+
+@app.get("/auth/google/callback")
+async def google_callback_route(code: str, state: str):
+    return await google_callback(code, state)
+
+
+@app.get("/auth/github/start")
+def github_start_route():
+    return github_start()
+
+
+@app.get("/auth/github/callback")
+async def github_callback_route(code: str, state: str):
+    return await github_callback(code, state)
 
 
 @app.post("/chat")
@@ -130,7 +204,7 @@ def login(req: LoginRequest):
 async def chat(
     request: Request,
     req: ChatRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     user_id = current_user["id"]
 
@@ -146,7 +220,7 @@ async def chat(
         user_message=req.message,
         memory_context=memory_context,
         emotion_instruction=emotion_instr,
-        goals_context=goals_context
+        goals_context=goals_context,
     )
 
     save_message(user_id, req.session_id, "user", req.message)
@@ -159,7 +233,7 @@ async def chat(
         "reply": reply,
         "emotion": emotion,
         "emotion_emoji": emoji,
-        "session_id": req.session_id
+        "session_id": req.session_id,
     }
 
 
@@ -171,7 +245,7 @@ def history(current_user: dict = Depends(get_current_user)):
 @app.post("/files/extract")
 async def extract_file_text(
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     data = await file.read()
 
@@ -179,11 +253,10 @@ async def extract_file_text(
     if len(data) > max_size:
         raise HTTPException(
             status_code=413,
-            detail="File too large. Images must be under 4MB. Other files must be under 8MB."
+            detail="File too large. Images must be under 4MB. Other files must be under 8MB.",
         )
 
     extracted_text = extract_text_from_upload(file, data)
-
     if not extracted_text:
         raise HTTPException(status_code=400, detail="Could not extract text from this file.")
 
@@ -195,31 +268,24 @@ async def extract_file_text(
 
 
 @app.post("/goals")
-def add_new_goal(
-    req: GoalRequest,
-    current_user: dict = Depends(get_current_user)
-):
+def add_new_goal(req: GoalRequest, current_user: dict = Depends(get_current_user)):
     goal = add_goal(current_user["id"], req.title, req.description)
     return {"goal": goal}
+
 
 @app.get("/goals")
 def fetch_goals(current_user: dict = Depends(get_current_user)):
     return {"goals": get_goals(current_user["id"])}
 
+
 @app.put("/goals/{goal_id}/progress")
-def update_progress(
-    goal_id: str,
-    req: ProgressRequest,
-    current_user: dict = Depends(get_current_user)
-):
+def update_progress(goal_id: str, req: ProgressRequest, current_user: dict = Depends(get_current_user)):
     update_goal_progress(goal_id, req.progress, req.status)
     return {"message": "Updated"}
 
+
 @app.delete("/goals/{goal_id}")
-def remove_goal(
-    goal_id: str,
-    current_user: dict = Depends(get_current_user)
-):
+def remove_goal(goal_id: str, current_user: dict = Depends(get_current_user)):
     delete_goal(goal_id)
     return {"message": "Deleted"}
 
@@ -237,10 +303,7 @@ def analytics(current_user: dict = Depends(get_current_user)):
     total_goals = len(goals)
     active_goals = sum(1 for g in goals if g["status"] == "active")
     done_goals = sum(1 for g in goals if g["status"] == "completed")
-    avg_progress = (
-        int(sum(g["progress"] for g in goals) / total_goals)
-        if total_goals else 0
-    )
+    avg_progress = int(sum(g["progress"] for g in goals) / total_goals) if total_goals else 0
 
     return {
         "total_messages": total_msgs,

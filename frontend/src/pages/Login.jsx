@@ -5,7 +5,9 @@ import { LuBrain } from 'react-icons/lu'
 import { GoGoal } from 'react-icons/go'
 import { BiHappy } from 'react-icons/bi'
 
-const API = '/api'
+axios.defaults.withCredentials = true
+
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const FEATURES = [
   {
@@ -47,12 +49,26 @@ export default function Login({ onLogin, dark, setDark }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPass] = useState('')
+  const [otp, setOtp] = useState('')
+  const [awaitingOtp, setAwaitingOtp] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
 
   const t = dark ? D : L
 
+  const clearStatus = () => {
+    setError('')
+    setMessage('')
+  }
+
+  const handleOAuth = (provider) => {
+    window.location.href = `${API}/auth/${provider}/start`
+  }
+
   const handleSubmit = async () => {
+    clearStatus()
+
     if (!email.trim() || !password.trim()) {
       setError('Email and password are required.')
       return
@@ -63,37 +79,89 @@ export default function Login({ onLogin, dark, setDark }) {
       return
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.')
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.')
       return
     }
 
     setLoading(true)
-    setError('')
 
     try {
-      const endpoint = mode === 'register' ? '/auth/register' : '/auth/login'
+      if (mode === 'register') {
+        const res = await axios.post(`${API}/auth/register`, {
+          name: name.trim(),
+          email: email.trim(),
+          password,
+        })
 
-      const body =
-        mode === 'register'
-          ? { name: name.trim(), email: email.trim(), password }
-          : { email: email.trim(), password }
+        setAwaitingOtp(true)
+        setMessage(res.data.message || 'OTP sent to your email.')
+        return
+      }
 
-      const res = await axios.post(`${API}${endpoint}`, body)
-
-      const { token, user_id, name: returnedName } = res.data
-
-      localStorage.setItem('mentor_token', token)
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
-
-      onLogin({
-        name: returnedName || name.trim(),
+      const res = await axios.post(`${API}/auth/login`, {
         email: email.trim(),
-        userId: user_id,
+        password,
       })
+
+      onLogin(res.data.user)
     } catch (err) {
-      const msg = err.response?.data?.detail
-      setError(msg || 'Could not connect. Is backend running on port 8000?')
+      const status = err.response?.status
+      const detail = err.response?.data?.detail || err.response?.data?.message
+
+      if (status === 403) {
+        setAwaitingOtp(true)
+        setMessage('Your email is not verified yet. Enter the OTP sent to your inbox.')
+      } else {
+        setError(detail || 'Could not connect. Is backend running?')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const verifyOtp = async () => {
+    clearStatus()
+
+    if (!otp.trim()) {
+      setError('Enter the OTP sent to your email.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await axios.post(`${API}/auth/verify-otp`, {
+        email: email.trim(),
+        otp: otp.trim(),
+      })
+
+      setAwaitingOtp(false)
+      setOtp('')
+      onLogin(res.data.user)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'OTP verification failed.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const resendOtp = async () => {
+    clearStatus()
+
+    if (!email.trim()) {
+      setError('Enter your email first.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await axios.post(`${API}/auth/send-otp`, {
+        email: email.trim(),
+      })
+      setMessage(res.data.message || 'OTP sent again.')
+      setAwaitingOtp(true)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Could not resend OTP.')
     } finally {
       setLoading(false)
     }
@@ -278,13 +346,10 @@ export default function Login({ onLogin, dark, setDark }) {
             <div
               key={title}
               style={{
-               
                 padding: '10px 10px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 14,
-                
-                
                 backdropFilter: 'blur(16px)',
               }}
             >
@@ -362,7 +427,8 @@ export default function Login({ onLogin, dark, setDark }) {
                 key={m}
                 onClick={() => {
                   setMode(m)
-                  setError('')
+                  setAwaitingOtp(false)
+                  clearStatus()
                 }}
                 style={{
                   flex: 1,
@@ -432,11 +498,21 @@ export default function Login({ onLogin, dark, setDark }) {
             label="Password"
             value={password}
             onChange={setPass}
-            placeholder="Min. 6 characters"
+            placeholder="Min. 8 characters"
             type="password"
             t={t}
             onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
           />
+
+          {awaitingOtp && (
+            <Field
+              label="OTP"
+              value={otp}
+              onChange={setOtp}
+              placeholder="Enter 6-digit code"
+              t={t}
+            />
+          )}
 
           {error && (
             <div
@@ -454,25 +530,87 @@ export default function Login({ onLogin, dark, setDark }) {
             </div>
           )}
 
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            style={{
-              width: '100%',
-              padding: 15,
-              border: 'none',
-              borderRadius: 14,
-              background: 'linear-gradient(135deg, #8b5cf6, #06b6d4, #14b8a6)',
-              color: '#fff',
-              fontSize: 15,
-              fontWeight: 800,
-              cursor: 'pointer',
-              boxShadow: dark ? 'none' : '0 12px 26px rgba(59,130,246,0.22)',
-              opacity: loading ? 0.9 : 1,
-            }}
-          >
-            {loading ? 'Please wait...' : mode === 'login' ? 'Sign In →' : 'Create Account →'}
-          </button>
+          {message && (
+            <div
+              style={{
+                background: 'rgba(16,185,129,0.12)',
+                color: '#10b981',
+                padding: 14,
+                borderRadius: 12,
+                marginBottom: 16,
+                fontSize: 13,
+                border: '1px solid rgba(16,185,129,0.16)',
+              }}
+            >
+              {message}
+            </div>
+          )}
+
+          {!awaitingOtp ? (
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              style={{
+                width: '100%',
+                padding: 15,
+                border: 'none',
+                borderRadius: 14,
+                background: 'linear-gradient(135deg, #8b5cf6, #06b6d4, #14b8a6)',
+                color: '#fff',
+                fontSize: 15,
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: dark ? 'none' : '0 12px 26px rgba(59,130,246,0.22)',
+                opacity: loading ? 0.9 : 1,
+              }}
+            >
+              {loading ? 'Please wait...' : mode === 'login' ? 'Sign In →' : 'Create Account →'}
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={verifyOtp}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: 15,
+                  border: 'none',
+                  borderRadius: 14,
+                  background: 'linear-gradient(135deg, #8b5cf6, #06b6d4, #14b8a6)',
+                  color: '#fff',
+                  fontSize: 15,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: dark ? 'none' : '0 12px 26px rgba(59,130,246,0.22)',
+                  opacity: loading ? 0.9 : 1,
+                  marginBottom: 10,
+                }}
+              >
+                {loading ? 'Verifying...' : 'Verify OTP'}
+              </button>
+
+              <button
+                onClick={resendOtp}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: 15,
+                  border: 'none',
+                  borderRadius: 14,
+                  background: t.inputBg,
+                  color: t.text,
+                  fontSize: 15,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(148,163,184,0.12)'}`,
+                }}
+              >
+                Resend OTP
+              </button>
+            </>
+          )}
+
+      
 
           <p
             style={{
@@ -487,7 +625,8 @@ export default function Login({ onLogin, dark, setDark }) {
             <span
               onClick={() => {
                 setMode(mode === 'login' ? 'register' : 'login')
-                setError('')
+                setAwaitingOtp(false)
+                clearStatus()
               }}
               style={{
                 color: t.accentText,
@@ -542,17 +681,11 @@ function Field({
           color: t.text,
           fontSize: 14,
           fontFamily: "'DM Sans', sans-serif",
-          boxShadow: darkShadow(t, false),
+          boxShadow: '0 10px 24px rgba(15, 23, 42, 0.06)',
         }}
       />
     </div>
   )
-}
-
-function darkShadow(t, dark) {
-  return dark
-    ? 'none'
-    : '0 10px 24px rgba(15, 23, 42, 0.06)'
 }
 
 const L = {
